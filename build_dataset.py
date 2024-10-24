@@ -12,7 +12,7 @@ def rreplace(s, old, new, occurrence=1):
     li = s.rsplit(old, occurrence)
     return new.join(li)
 
-def build_dataset(api_info):
+def build_dataset(api_info, is_eval):
     openapi_spec = load_openapi_spec(api_info["Documentation"])
     components_descriptions = escape(api_info["Function_Description"]["components"])
     tools = [GetDetailsTool()]
@@ -42,39 +42,42 @@ def build_dataset(api_info):
 
     api_dataset = []
 
-    for ans in api_info.get("Instances", []):
-        process = []
-        trainable = []
+    if not is_eval:
+        for ans in api_info.get("Instances", []):
+            process = []
+            trainable = []
 
-        if not ans.get("intermediate_steps"):
-            continue
+            if not ans.get("intermediate_steps"):
+                continue
 
-        if len(ans["intermediate_steps"]) > 5:
-            continue
-        
-        question = ans["input"].rsplit("\nHint: ", 1)[0]
-        prefix = prompt.format(input=question, agent_scratchpad="")
-        process.append(prefix + " ")
-        trainable.append(False)
-
-        used_tools = set()
-        for step in ans["intermediate_steps"]:
-            thought_action = rreplace(step[0][2][1:], "\nAction Input:", "\nASSISTANT Action Input:", 1)
-            thought_action = rreplace(thought_action, "\nAction:", "\nASSISTANT Action:", 1)
-            process.append(thought_action + "\nASSISTANT Observation: ")
-            trainable.append(True)
-            process.append(step[1] + "\nASSISTANT Thought: ")
+            if len(ans["intermediate_steps"]) > 5:
+                continue
+            
+            question = ans["input"].rsplit("\nHint: ", 1)[0]
+            prefix = prompt.format(input=question, agent_scratchpad="")
+            process.append(prefix + " ")
             trainable.append(False)
 
-            used_tools.add(step[0][0])
-        used_tools = list(used_tools)
-        if len(used_tools) == 1 and used_tools[0] == "getDetails":
-            continue
+            used_tools = set()
+            for step in ans["intermediate_steps"]:
+                thought_action = rreplace(step[0][2][1:], "\nAction Input:", "\nASSISTANT Action Input:", 1)
+                thought_action = rreplace(thought_action, "\nAction:", "\nASSISTANT Action:", 1)
+                process.append(thought_action + "\nASSISTANT Observation: ")
+                trainable.append(True)
+                process.append(step[1] + "\nASSISTANT Thought: ")
+                trainable.append(False)
 
-        process.append(f"{ans.get('Final Thought', 'I can reponse to the user now.')}\nASSISTANT Response: {ans['output']}")
-        trainable.append(True)
+                used_tools.add(step[0][0])
+            used_tools = list(used_tools)
+            if len(used_tools) == 1 and used_tools[0] == "getDetails":
+                continue
 
-        api_dataset.append([process, trainable])
+            process.append(f"{ans.get('Final Thought', 'I can reponse to the user now.')}\nASSISTANT Response: {ans['output']}")
+            trainable.append(True)
+
+            api_dataset.append([process, trainable])
+    else: # just ad the initial instruction
+        api_dataset.append([[prompt.format(input=api_info["Instruction"], agent_scratchpad="") + " "], [True]])
     
     return api_dataset
 
@@ -83,6 +86,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-api", "--api_data_path", type=str, default="")
     parser.add_argument("-out", "--output_path", type=str, default="./data")
+    parser.add_argument("-eval", "--is_eval", action="store_true")
     args = parser.parse_args()
 
     api_data = json.load(open(args.api_data_path, "r", encoding="utf-8"))
@@ -92,7 +96,7 @@ if __name__ == "__main__":
     for api in api_data:
         if api.get("Function_Description") is None:
             continue
-        data = build_dataset(api)
+        data = build_dataset(api, args.is_eval)
         all_data.extend(data)
 
     all_lengths = {}
