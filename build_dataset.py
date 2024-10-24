@@ -77,7 +77,8 @@ def build_dataset(api_info, is_eval):
 
             api_dataset.append([process, trainable])
     else: # just ad the initial instruction
-        api_dataset.append([[prompt.format(input=api_info["Instruction"], agent_scratchpad="") + " "], [True]])
+        for instruction in api_info["Instructions"]:
+            api_dataset.append([[prompt.format(input=instruction, agent_scratchpad="") + " "], [True]])
     
     return api_dataset
 
