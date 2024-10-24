@@ -20,7 +20,7 @@ class Tool(BaseTool):
     description: str = ""
     func: Callable[[str], str]
     coroutine: Optional[Callable[[str], Awaitable[str]]] = None
-    max_output_len = 3000
+    max_output_len: int = 3000
 
     def _run(self, tool_input: str) -> str:
         """Use the tool."""
@@ -86,8 +86,8 @@ class Tool(BaseTool):
 class CustomInvalidTool(BaseTool):
     """Tool that is run when invalid tool name is encountered by agent."""
 
-    name = "invalid_tool"
-    description = "Called when tool name is invalid."
+    name: str = "invalid_tool"
+    description: str = "Called when tool name is invalid."
 
     def _run(self, tool_name: str, all_tools: List[str]) -> str:
         """Use the tool."""
